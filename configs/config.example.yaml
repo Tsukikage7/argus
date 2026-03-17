@@ -1,0 +1,56 @@
+app:
+  name: argus
+  addr: ":9999"
+  api_keys: ["argus-demo-key"]
+  admin_key: "argus-admin"
+
+log:
+  level: info
+  format: json
+
+providers:
+  - name: dashscope
+    base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    api_key: "${DASHSCOPE_API_KEY}"
+    default_model: "qwen-plus"
+    timeout: 120s
+    max_tokens: 4096
+    models: ["qwen-plus", "qwen-turbo", "qwen-max"]
+
+agent:
+  max_steps: 15
+  auto_recover_threshold: 0.8
+  confirm_threshold: 0.5
+  timeout: 5m
+
+elasticsearch:
+  addresses: ["http://localhost:9200"]
+  index_prefix: "argus"
+
+redis:
+  addr: "localhost:6379"
+
+postgres:
+  dsn: "postgres://argus:argus@localhost:5432/argus?sslmode=disable"
+
+wechat:
+  corp_id: "${WECHAT_CORP_ID}"
+  agent_id: 0
+  secret: "${WECHAT_SECRET}"
+
+mock:
+  enabled: true
+  services:
+    - gateway
+    - user-service
+    - order-service
+    - payment-service
+    - inventory-service
+    - notification-service
+
+replay:
+  enabled: true
+  default_fault_intensity: 1.0
+  default_traffic_rate: 1.0
+  max_duration: 30m
+  auto_diagnose: true

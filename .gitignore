@@ -1,0 +1,39 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Build & temp
+/tmp/
+/bin/
+/dist/
+
+# Air
+tmp/
+
+# Vendor (uncomment if you vendor)
+# /vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env & secrets
+.env
+.env.*
+configs/config.yaml
+configs/config.local.yaml
+
+# Test & coverage
+*.test
+*.out
+coverage.html
