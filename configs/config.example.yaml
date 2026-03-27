@@ -40,13 +40,13 @@ wechat:
 
 mock:
   enabled: true
-  services:
-    - gateway
-    - user-service
-    - order-service
-    - payment-service
-    - inventory-service
-    - notification-service
+  namespaces:
+    - prj-apigateway
+    - prj-uhost
+    - prj-ubill
+    - prj-uresource
+    - prj-unet
+    - prj-udb
 
 replay:
   enabled: true
@@ -54,3 +54,19 @@ replay:
   default_traffic_rate: 1.0
   max_duration: 30m
   auto_diagnose: true
+
+monitor:
+  enabled: true
+  interval: 30s
+  cooldown: 5m
+  threshold: 5
+
+live:
+  rps: 5
+  fault_rate: 0.1
+
+# 多租户配置（默认关闭，启用后使用 PG 存储的 TenantKey 认证）
+multi_tenant:
+  enabled: false
+  bootstrap_admin_keys: ["argus-admin"]
+  allowed_origins: ["http://localhost:5173"]

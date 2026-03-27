@@ -15,11 +15,18 @@ import (
 // ReplayRepository 回放会话存储接口
 type ReplayRepository interface {
 	Save(ctx context.Context, s *task.ReplaySession) error
-	Get(ctx context.Context, id string) (*task.ReplaySession, error)
+	Get(ctx context.Context, tenantID, id string) (*task.ReplaySession, error)
+}
+
+// EventBridge 支持事件订阅和转发（SSEHub 实现了此接口）
+type EventBridge interface {
+	Subscribe(taskID string) chan task.TaskEvent
+	Unsubscribe(taskID string, ch chan task.TaskEvent)
 }
 
 // ReplayCommand 回放命令
 type ReplayCommand struct {
+	TenantID     string // 租户 ID（从请求上下文注入）
 	Type         task.ReplayType
 	ScenarioName string
 	Config       task.ReplayConfig
@@ -64,6 +71,7 @@ func (h *ReplayHandler) Handle(ctx context.Context, cmd ReplayCommand) (*task.Re
 
 	session := &task.ReplaySession{
 		ID:           uuid.New().String(),
+		TenantID:     cmd.TenantID,
 		Type:         cmd.Type,
 		ScenarioName: cmd.ScenarioName,
 		Config:       cmd.Config,
@@ -123,10 +131,9 @@ func (h *ReplayHandler) HandleSync(ctx context.Context, cmd ReplayCommand, onPro
 		return session, err
 	}
 	session.LogsWritten = result.LogsWritten
-	session.TracesWritten = result.TracesWritten
 
 	if onProgress != nil {
-		onProgress(fmt.Sprintf("data_written: %d logs, %d traces", result.LogsWritten, result.TracesWritten))
+		onProgress(fmt.Sprintf("data_written: %d logs", result.LogsWritten))
 	}
 
 	// 2. 自动诊断
@@ -143,6 +150,10 @@ func (h *ReplayHandler) HandleSync(ctx context.Context, cmd ReplayCommand, onPro
 		})
 		if diagErr == nil && diagTask != nil {
 			session.TaskID = diagTask.ID
+			// 通知前端诊断任务 ID
+			h.publishReplayEvent(session, "diagnosis_task", diagTask.ID)
+			// 转发诊断事件到回放 SSE 流（阻塞直到诊断完成）
+			h.forwardDiagnosisEvents(ctx, session, diagTask.ID)
 		}
 	}
 
@@ -151,7 +162,7 @@ func (h *ReplayHandler) HandleSync(ctx context.Context, cmd ReplayCommand, onPro
 		onProgress("computing_impact")
 	}
 
-	impact, impactErr := h.engine.ComputeImpact(ctx, session.ID)
+	impact, impactErr := h.engine.ComputeImpact(ctx, session.TenantID, session.ID)
 	if impactErr == nil && impact != nil {
 		// 4. LLM 生成影响面总结
 		summary := h.generateImpactSummary(ctx, impact, scenario.Name, scenario.Description)
@@ -195,8 +206,7 @@ func (h *ReplayHandler) runAsync(session *task.ReplaySession, scenario Scenario)
 		return
 	}
 	session.LogsWritten = result.LogsWritten
-	session.TracesWritten = result.TracesWritten
-	h.publishReplayEvent(session, "progress", fmt.Sprintf("data written: %d logs, %d traces", result.LogsWritten, result.TracesWritten))
+	h.publishReplayEvent(session, "progress", fmt.Sprintf("data written: %d logs", result.LogsWritten))
 
 	// 2. 自动诊断
 	if session.Config.AutoDiagnose && h.diagnoseH != nil {
@@ -211,11 +221,15 @@ func (h *ReplayHandler) runAsync(session *task.ReplaySession, scenario Scenario)
 		if diagErr == nil && diagTask != nil {
 			session.TaskID = diagTask.ID
 			_ = h.replayRepo.Save(ctx, session)
+			// 通知前端诊断任务 ID，前端可据此订阅诊断 SSE 流
+			h.publishReplayEvent(session, "diagnosis_task", diagTask.ID)
+			// 订阅诊断任务事件并转发到回放 SSE 流（阻塞直到诊断完成）
+			h.forwardDiagnosisEvents(ctx, session, diagTask.ID)
 		}
 	}
 
 	// 3. 计算影响面
-	impact, impactErr := h.engine.ComputeImpact(ctx, session.ID)
+	impact, impactErr := h.engine.ComputeImpact(ctx, session.TenantID, session.ID)
 	if impactErr == nil && impact != nil {
 		// 4. LLM 生成影响面总结
 		summary := h.generateImpactSummary(ctx, impact, scenario.Name, scenario.Description)
@@ -267,6 +281,50 @@ func (h *ReplayHandler) generateImpactSummary(ctx context.Context, report *task.
 		return fmt.Sprintf("影响面总结生成失败: %v", err)
 	}
 	return resp.Content
+}
+
+// forwardDiagnosisEvents 订阅诊断任务的 SSE 事件并转发到回放 SSE 流。
+// 阻塞直到诊断完成（收到 completed/failed 状态事件）、超时或 ctx 取消。
+func (h *ReplayHandler) forwardDiagnosisEvents(ctx context.Context, session *task.ReplaySession, taskID string) {
+	bridge, ok := h.events.(EventBridge)
+	if !ok {
+		// events 不支持订阅（如测试环境），跳过转发
+		return
+	}
+
+	ch := bridge.Subscribe(taskID)
+	defer bridge.Unsubscribe(taskID, ch)
+
+	// 兜底超时：防止诊断失败路径未发布终态事件导致永久阻塞
+	timeout := time.NewTimer(10 * time.Minute)
+	defer timeout.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-timeout.C:
+			// 超时兜底退出，避免 goroutine 泄漏
+			return
+		case event, ok := <-ch:
+			if !ok {
+				return
+			}
+			// 将 step 和 diagnosis 事件转发到回放 SSE 频道
+			if event.Type == "step" || event.Type == "diagnosis" || event.Type == "recovery" {
+				h.publishReplayEvent(session, event.Type, event.Data)
+			}
+			// 诊断状态变更：转发并在终态时退出
+			if event.Type == "status" {
+				h.publishReplayEvent(session, "diagnosis_status", event.Data)
+				if status, ok := event.Data.(task.Status); ok {
+					if status == task.StatusCompleted || status == task.StatusFailed {
+						return
+					}
+				}
+			}
+		}
+	}
 }
 
 // Scenario 在这里重新定义以避免循环导入时的类型别名问题

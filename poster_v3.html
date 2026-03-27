@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Argus Project Poster - 整体思路</title>
+<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet"/>
+<link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&display=swap" rel="stylesheet"/>
+<style>
+    body {
+        font-family: 'Noto Sans SC', sans-serif;
+        background-color: #0B1120;
+        color: #E2E8F0;
+        overflow: hidden;
+        margin: 0;
+        padding: 0;
+        width: 1920px;
+        height: 1080px;
+    }
+    .glass-panel {
+        background-color: rgba(15, 23, 42, 0.8);
+        border: 1px solid rgba(51, 65, 85, 0.5);
+        backdrop-filter: blur(12px);
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    }
+    .highlight-card {
+        background-color: rgba(30, 41, 59, 0.4);
+        border-left: 4px solid #38BDF8;
+    }
+    .arch-box {
+        background-color: #1E293B;
+        border: 1px solid #475569;
+        color: #F8FAFC;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 500;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+    }
+    .pain-box {
+        background: linear-gradient(135deg, rgba(239,68,68,0.1), rgba(239,68,68,0.05));
+        border: 1px solid rgba(239,68,68,0.3);
+        border-radius: 10px;
+        padding: 14px 18px;
+        text-align: center;
+    }
+    .output-box {
+        background: linear-gradient(135deg, rgba(16,185,129,0.1), rgba(16,185,129,0.05));
+        border: 1px solid rgba(16,185,129,0.3);
+        border-radius: 10px;
+        padding: 12px 16px;
+        text-align: center;
+    }
+    .layer-domain {
+        background-color: rgba(59, 130, 246, 0.08);
+        border: 2px solid rgba(59, 130, 246, 0.4);
+        border-radius: 14px;
+        box-shadow: inset 0 0 20px rgba(59, 130, 246, 0.08);
+    }
+    .tool-chip {
+        background-color: #0F172A;
+        border: 1px solid #334155;
+        border-radius: 6px;
+        padding: 6px 12px;
+        font-size: 11px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .tech-tag {
+        background-color: rgba(56, 189, 248, 0.05);
+        color: #7DD3FC;
+        border: 1px solid rgba(56, 189, 248, 0.2);
+        padding: 6px 16px;
+        border-radius: 6px;
+        font-family: monospace;
+        font-weight: 600;
+        font-size: 0.9rem;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .bg-grid {
+        background-size: 60px 60px;
+        background-image:
+            linear-gradient(to right, rgba(51, 65, 85, 0.05) 1px, transparent 1px),
+            linear-gradient(to bottom, rgba(51, 65, 85, 0.05) 1px, transparent 1px);
+    }
+    @keyframes pulse-border {
+        0% { border-color: rgba(59, 130, 246, 0.4); }
+        50% { border-color: rgba(59, 130, 246, 0.8); box-shadow: 0 0 15px rgba(59, 130, 246, 0.3); }
+        100% { border-color: rgba(59, 130, 246, 0.4); }
+    }
+    .animate-pulse-border { animation: pulse-border 3s infinite; }
+    @keyframes dash { to { stroke-dashoffset: 0; } }
+    .path-animated { stroke-dasharray: 12; animation: dash 1.5s linear infinite; }
+    .section-label {
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        padding: 2px 10px;
+        border-radius: 4px;
+    }
+</style>
+</head>
+<body class="flex flex-col bg-grid relative">
+<!-- 背景装饰 -->
+<div class="absolute top-0 right-0 w-[800px] h-[800px] bg-blue-900/10 rounded-full filter blur-[120px] pointer-events-none"></div>
+<div class="absolute bottom-0 left-0 w-[600px] h-[600px] bg-indigo-900/10 rounded-full filter blur-[100px] pointer-events-none"></div>
+
+<div class="flex-1 flex flex-col px-16 py-10 z-10 h-full max-w-[1920px] mx-auto box-border">
+
+<!-- ═══ 1. 顶部标题 ═══ -->
+<header class="flex justify-between items-end mb-6 pb-6 border-b border-slate-800">
+    <div>
+        <div class="flex items-center gap-5 mb-1">
+            <div class="w-14 h-14 bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20 border border-blue-400/20">
+                <i class="fas fa-eye text-3xl text-white"></i>
+            </div>
+            <h1 class="text-6xl font-black tracking-tight text-white leading-none">ARGUS</h1>
+        </div>
+        <h2 class="text-2xl text-slate-400 font-light tracking-wide mt-2 ml-1">智能日志诊断与故障恢复平台</h2>
+    </div>
+    <div class="flex flex-col items-end gap-3">
+        <div class="flex items-center gap-3 bg-slate-800/50 px-5 py-2 rounded-lg border border-slate-700 mb-2">
+            <span class="text-slate-400 text-sm">传统排查耗时 <span class="text-red-400 line-through font-bold">30min+</span></span>
+            <i class="fas fa-arrow-right text-slate-500 text-xs"></i>
+            <span class="text-emerald-400 font-bold text-sm">Argus 分钟级自动诊断</span>
+        </div>
+        <div class="flex gap-6">
+            <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span><span class="text-blue-200 font-medium">AI Agent 驱动</span></div>
+            <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-cyan-400"></span><span class="text-blue-200 font-medium">故障根因定位</span></div>
+            <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-emerald-400"></span><span class="text-blue-200 font-medium">自动恢复执行</span></div>
+        </div>
+    </div>
+</header>
+
+<!-- ═══ 2. 指标条 ═══ -->
+<div class="grid grid-cols-4 gap-6 mb-8 w-full">
+    <div class="bg-slate-900/40 border border-slate-800 rounded-lg p-3 flex items-center justify-between px-6">
+        <span class="text-slate-400 text-sm">平均诊断耗时</span>
+        <span class="text-2xl font-bold text-white font-mono">&lt; 5 min</span>
+    </div>
+    <div class="bg-slate-900/40 border border-slate-800 rounded-lg p-3 flex items-center justify-between px-6">
+        <span class="text-slate-400 text-sm">模拟服务拓扑</span>
+        <span class="text-2xl font-bold text-white font-mono">6 Services</span>
+    </div>
+    <div class="bg-slate-900/40 border border-slate-800 rounded-lg p-3 flex items-center justify-between px-6">
+        <span class="text-slate-400 text-sm">最大推理深度</span>
+        <span class="text-2xl font-bold text-white font-mono">15 Steps</span>
+    </div>
+    <div class="bg-slate-900/40 border border-slate-800 rounded-lg p-3 flex items-center justify-between px-6">
+        <span class="text-slate-400 text-sm">预置故障场景</span>
+        <span class="text-2xl font-bold text-white font-mono">3+ Types</span>
+    </div>
+</div>
+
+<!-- ═══ 3. 主体内容 ═══ -->
+<div class="flex-1 flex gap-10 min-h-0">
+
+<!-- ══ 左侧：端到端整体思路流程 ══ -->
+<div class="flex-[2] glass-panel rounded-2xl p-6 flex flex-col min-h-0">
+    <div class="flex justify-between items-center mb-4 flex-shrink-0">
+        <h3 class="text-xl font-bold text-white flex items-center">
+            <span class="bg-blue-600/20 p-2 rounded-lg mr-3 text-blue-400"><i class="fas fa-route"></i></span>
+            整体思路：从故障发现到自动恢复
+        </h3>
+    </div>
+
+    <div class="flex-1 flex flex-col bg-slate-950/30 rounded-xl border border-slate-800/50 p-6 justify-between overflow-hidden">
+
+        <!-- 第一层：痛点场景 -->
+        <div class="flex flex-col items-center flex-shrink-0">
+            <span class="section-label bg-red-500/20 text-red-400 mb-3">问题：微服务运维困境</span>
+            <div class="flex justify-center gap-5 w-full">
+                <div class="pain-box flex-1 max-w-[200px]">
+                    <i class="fas fa-bell text-red-400 text-lg mb-1"></i>
+                    <div class="text-sm font-bold text-red-300">告警风暴</div>
+                    <div class="text-[10px] text-slate-500 mt-1">海量告警难以定位根因</div>
+                </div>
+                <div class="pain-box flex-1 max-w-[200px]">
+                    <i class="fas fa-puzzle-piece text-red-400 text-lg mb-1"></i>
+                    <div class="text-sm font-bold text-red-300">日志分散</div>
+                    <div class="text-[10px] text-slate-500 mt-1">跨服务日志人工关联困难</div>
+                </div>
+                <div class="pain-box flex-1 max-w-[200px]">
+                    <i class="fas fa-user-clock text-red-400 text-lg mb-1"></i>
+                    <div class="text-sm font-bold text-red-300">依赖专家</div>
+                    <div class="text-[10px] text-slate-500 mt-1">排查强依赖个人经验</div>
+                </div>
+                <div class="pain-box flex-1 max-w-[200px]">
+                    <i class="fas fa-hourglass-half text-red-400 text-lg mb-1"></i>
+                    <div class="text-sm font-bold text-red-300">恢复缓慢</div>
+                    <div class="text-[10px] text-slate-500 mt-1">手动操作易出错、耗时长</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 向下箭头 -->
+        <div class="flex flex-col items-center my-2 flex-shrink-0">
+            <div class="h-4 w-px bg-slate-600"></div>
+            <i class="fas fa-chevron-down text-slate-500 text-xs"></i>
+            <span class="text-[10px] text-slate-500 mt-0.5">CLI / Web / 企微 三端接入</span>
+        </div>
+
+        <!-- 第二层：ReAct Agent 核心方案 -->
+        <div class="flex flex-col items-center flex-1 min-h-[180px] justify-center">
+            <span class="section-label bg-blue-500/20 text-blue-400 mb-3">方案：ReAct Agent 自主推理</span>
+            <div class="layer-domain w-[95%] animate-pulse-border relative flex flex-col items-center py-5 px-6">
+                <span class="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-blue-600 px-4 py-0.5 rounded-full text-xs font-bold text-white shadow-lg shadow-blue-500/50 z-20">ReAct Agent Engine</span>
+
+                <div class="flex items-center gap-6 w-full justify-center mt-2">
+                    <!-- LLM -->
+                    <div class="flex flex-col items-center flex-shrink-0">
+                        <div class="w-16 h-16 rounded-full bg-slate-900 border-2 border-blue-400 flex items-center justify-center shadow-[0_0_20px_rgba(59,130,246,0.4)]">
+                            <i class="fas fa-brain text-2xl text-blue-400"></i>
+                        </div>
+                        <div class="text-[10px] font-bold text-blue-200 mt-1">LLM</div>
+                        <div class="text-[9px] text-slate-500">Qwen-plus</div>
+                    </div>
+
+                    <!-- 循环步骤 -->
+                    <div class="flex flex-col items-center relative">
+                        <div class="flex items-center gap-4">
+                            <div class="arch-box w-24 h-14 rounded-lg flex-col bg-slate-800 border-blue-500/50 shadow-lg">
+                                <span class="text-blue-300 font-bold text-xs">1. Think</span>
+                                <span class="text-[9px] text-slate-400">推理规划</span>
+                            </div>
+                            <i class="fas fa-arrow-right text-slate-600 text-xs"></i>
+                            <div class="arch-box w-24 h-14 rounded-lg flex-col bg-slate-800 border-cyan-500/50 shadow-lg">
+                                <span class="text-cyan-300 font-bold text-xs">2. Act</span>
+                                <span class="text-[9px] text-slate-400">调用工具</span>
+                            </div>
+                            <i class="fas fa-arrow-right text-slate-600 text-xs"></i>
+                            <div class="arch-box w-24 h-14 rounded-lg flex-col bg-slate-800 border-emerald-500/50 shadow-lg">
+                                <span class="text-emerald-300 font-bold text-xs">3. Observe</span>
+                                <span class="text-[9px] text-slate-400">分析结果</span>
+                            </div>
+                        </div>
+                        <!-- 回环标注 -->
+                        <div class="flex items-center gap-2 mt-2">
+                            <svg width="320" height="28" class="overflow-visible">
+                                <path d="M 290 2 C 310 2, 315 22, 160 22 C 5 22, 10 2, 30 2" fill="none" stroke="#3B82F6" stroke-width="1.5" marker-end="url(#ah2)" class="path-animated"/>
+                                <defs><marker id="ah2" markerWidth="6" markerHeight="5" refX="5" refY="2.5" orient="auto"><polygon points="0 0, 6 2.5, 0 5" fill="#3B82F6"/></marker></defs>
+                            </svg>
+                        </div>
+                        <div class="bg-slate-900 border border-blue-500/40 px-3 py-1 rounded-full text-[10px] text-blue-200 flex items-center mt-0.5">
+                            <i class="fas fa-rotate mr-1.5 text-blue-400 text-[8px]"></i>
+                            <span class="font-bold">最多 15 步循环推理</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 工具条 -->
+                <div class="flex gap-3 mt-4 w-full justify-center">
+                    <div class="tool-chip border-orange-500/30"><i class="fas fa-search text-orange-400 text-[10px]"></i><span class="text-orange-300">ES 日志查询</span></div>
+                    <div class="tool-chip border-purple-500/30"><i class="fas fa-network-wired text-purple-400 text-[10px]"></i><span class="text-purple-300">链路追踪分析</span></div>
+                    <div class="tool-chip border-red-500/30"><i class="fas fa-terminal text-red-400 text-[10px]"></i><span class="text-red-300">命令执行</span></div>
+                    <div class="tool-chip border-green-500/30"><i class="fas fa-bell text-green-400 text-[10px]"></i><span class="text-green-300">通知发送</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 向下箭头 -->
+        <div class="flex flex-col items-center my-2 flex-shrink-0">
+            <div class="h-4 w-px bg-emerald-500/50"></div>
+            <i class="fas fa-chevron-down text-emerald-500 text-xs"></i>
+        </div>
+
+        <!-- 第三层：诊断输出 -->
+        <div class="flex flex-col items-center flex-shrink-0">
+            <span class="section-label bg-emerald-500/20 text-emerald-400 mb-3">输出：结构化诊断结论</span>
+            <div class="flex justify-center gap-4 w-full">
+                <div class="output-box flex-1 max-w-[180px]">
+                    <i class="fas fa-crosshairs text-emerald-400 mb-1"></i>
+                    <div class="text-xs font-bold text-emerald-300">根因定位</div>
+                    <div class="text-[9px] text-slate-500 mt-0.5">精确到服务+错误类型</div>
+                </div>
+                <div class="output-box flex-1 max-w-[180px]">
+                    <i class="fas fa-project-diagram text-emerald-400 mb-1"></i>
+                    <div class="text-xs font-bold text-emerald-300">影响范围</div>
+                    <div class="text-[9px] text-slate-500 mt-0.5">受影响服务与链路</div>
+                </div>
+                <div class="output-box flex-1 max-w-[180px]">
+                    <i class="fas fa-tools text-emerald-400 mb-1"></i>
+                    <div class="text-xs font-bold text-emerald-300">恢复建议</div>
+                    <div class="text-[9px] text-slate-500 mt-0.5">可执行的修复方案</div>
+                </div>
+                <div class="output-box flex-1 max-w-[180px]">
+                    <i class="fas fa-chart-line text-emerald-400 mb-1"></i>
+                    <div class="text-xs font-bold text-emerald-300">置信度评分</div>
+                    <div class="text-[9px] text-slate-500 mt-0.5">诊断可信度量化</div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- ══ 右侧：亮点 + 产品形态 ══ -->
+<div class="flex-1 flex flex-col gap-5 h-full">
+    <div class="flex items-center mb-1">
+        <span class="w-1 h-6 bg-yellow-500 rounded mr-3"></span>
+        <h3 class="text-xl font-bold text-white">核心技术亮点</h3>
+    </div>
+
+    <!-- Card 1: ReAct -->
+    <div class="highlight-card p-4 rounded-r-lg bg-slate-800/40">
+        <div class="flex gap-4">
+            <div class="mt-1 w-8 h-8 rounded bg-blue-500/20 flex items-center justify-center flex-shrink-0 text-blue-400"><i class="fas fa-brain text-sm"></i></div>
+            <div>
+                <h4 class="text-base font-bold text-white mb-1">ReAct 多步自主推理</h4>
+                <p class="text-slate-400 text-xs leading-relaxed">
+                    不是简单的单次 LLM 问答，而是 <span class="text-blue-300">Think → Act → Observe</span> 闭环循环。Agent 像专家一样逐步排查，支持 Function Calling 动态调用工具。
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Card 2: 故障回放 -->
+    <div class="highlight-card p-4 rounded-r-lg bg-slate-800/40" style="border-left-color: #A855F7;">
+        <div class="flex gap-4">
+            <div class="mt-1 w-8 h-8 rounded bg-purple-500/20 flex items-center justify-center flex-shrink-0 text-purple-400"><i class="fas fa-random text-sm"></i></div>
+            <div>
+                <h4 class="text-base font-bold text-white mb-1">故障回放与验证引擎</h4>
+                <p class="text-slate-400 text-xs leading-relaxed">
+                    预置 <span class="text-purple-300">级联超时 / 慢查询 / 内存泄漏</span> 等场景，支持故障强度与流量倍率调节。一键重现故障并自动触发诊断验证。
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Card 3: SSE -->
+    <div class="highlight-card p-4 rounded-r-lg bg-slate-800/40" style="border-left-color: #10B981;">
+        <div class="flex gap-4">
+            <div class="mt-1 w-8 h-8 rounded bg-emerald-500/20 flex items-center justify-center flex-shrink-0 text-emerald-400"><i class="fas fa-satellite-dish text-sm"></i></div>
+            <div>
+                <h4 class="text-base font-bold text-white mb-1">SSE 实时全链路推送</h4>
+                <p class="text-slate-400 text-xs leading-relaxed">
+                    告别黑盒诊断。Agent 每一步推理与行动都通过 <span class="text-emerald-300">Server-Sent Events</span> 实时流式推送到前端，诊断过程完全透明可观测。
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Card 4: 诊断可解释 (替换 DDD+CQRS) -->
+    <div class="highlight-card p-4 rounded-r-lg bg-slate-800/40" style="border-left-color: #F59E0B;">
+        <div class="flex gap-4">
+            <div class="mt-1 w-8 h-8 rounded bg-yellow-500/20 flex items-center justify-center flex-shrink-0 text-yellow-400"><i class="fas fa-file-alt text-sm"></i></div>
+            <div>
+                <h4 class="text-base font-bold text-white mb-1">证据驱动的可解释诊断</h4>
+                <p class="text-slate-400 text-xs leading-relaxed">
+                    每条根因分析与恢复建议都 <span class="text-yellow-300">回链到原始日志与 Trace 证据</span>。输出结构化 JSON 诊断结论，支持证据包导出与历史回溯。
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 产品形态 -->
+    <div class="mt-auto bg-slate-800/30 p-5 rounded-xl border border-slate-700/50">
+        <h4 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 border-b border-slate-700 pb-2">三端统一接入</h4>
+        <div class="grid grid-cols-3 gap-3">
+            <div class="bg-slate-900/80 p-3 rounded border border-slate-700 flex flex-col items-center justify-center">
+                <i class="fas fa-desktop text-xl text-blue-400 mb-2"></i>
+                <span class="text-[10px] text-slate-300">Web 诊断面板</span>
+            </div>
+            <div class="bg-slate-900/80 p-3 rounded border border-slate-700 flex flex-col items-center justify-center">
+                <i class="fas fa-terminal text-xl text-slate-400 mb-2"></i>
+                <span class="text-[10px] text-slate-300">CLI 命令行</span>
+            </div>
+            <div class="bg-slate-900/80 p-3 rounded border border-slate-700 flex flex-col items-center justify-center">
+                <i class="fab fa-weixin text-xl text-green-500 mb-2"></i>
+                <span class="text-[10px] text-slate-300">企业微信 Bot</span>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- ═══ 4. 底部技术栈 ═══ -->
+<footer class="mt-8 pt-4 border-t border-slate-800 flex items-center justify-between">
+    <div class="flex gap-3 items-center">
+        <span class="text-slate-500 text-xs font-bold uppercase tracking-widest mr-2">Tech Stack</span>
+        <span class="tech-tag border-blue-500/30 text-blue-300"><i class="fab fa-golang mr-2"></i>Go 1.25+</span>
+        <span class="tech-tag border-purple-500/30 text-purple-300"><i class="fas fa-robot mr-2"></i>OpenAI API / Qwen</span>
+        <span class="tech-tag border-yellow-500/30 text-yellow-300"><i class="fas fa-database mr-2"></i>Elasticsearch 8</span>
+        <span class="tech-tag border-red-500/30 text-red-300"><i class="fas fa-memory mr-2"></i>Redis 7</span>
+        <span class="tech-tag border-indigo-500/30 text-indigo-300"><i class="fas fa-database mr-2"></i>PostgreSQL 17</span>
+        <span class="tech-tag border-teal-500/30 text-teal-300"><i class="fas fa-server mr-2"></i>servex (自研框架)</span>
+    </div>
+    <div class="text-slate-500 text-xs font-mono">
+        <span class="text-blue-500 font-bold">UCloud A-效能革新方向</span> · AI Agent 竞赛项目 · Argus Team
+    </div>
+</footer>
+
+</div>
+</body>
+</html>

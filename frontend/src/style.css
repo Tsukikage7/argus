@@ -1,0 +1,67 @@
+@import "tailwindcss";
+@plugin "daisyui";
+
+/* DaisyUI 主题配置 */
+@plugin "daisyui" {
+  themes: dark, light;
+}
+
+/* Argus 自定义变量 */
+:root {
+  --brand: #6366f1;
+}
+
+/* ═══ Mesh Gradient 背景 ═══ */
+body::before,
+body::after {
+  content: '';
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(120px);
+  opacity: 0.15;
+  pointer-events: none;
+  z-index: -1;
+}
+body::before {
+  width: 600px;
+  height: 600px;
+  top: -200px;
+  left: -200px;
+  background: radial-gradient(circle, #6366f1, transparent 70%);
+}
+body::after {
+  width: 500px;
+  height: 500px;
+  bottom: -150px;
+  right: -150px;
+  background: radial-gradient(circle, #a855f7, transparent 70%);
+}
+
+/* ═══ Shimmer 扫描光效 ═══ */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.shimmer {
+  background: linear-gradient(90deg, transparent 30%, oklch(var(--bc) / 0.04) 50%, transparent 70%);
+  background-size: 200% 100%;
+  animation: shimmer 2.5s ease-in-out infinite;
+}
+
+/* ═══ 玻璃态卡片 ═══ */
+.glass-card {
+  background: oklch(var(--b1) / 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid oklch(var(--b3) / 0.5);
+  box-shadow: 0 8px 32px oklch(0 0 0 / 0.12);
+}
+
+/* 自定义滚动条 */
+.scroller::-webkit-scrollbar {
+  width: 5px;
+}
+.scroller::-webkit-scrollbar-thumb {
+  background: oklch(var(--bc) / 0.3);
+  border-radius: 4px;
+}

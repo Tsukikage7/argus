@@ -18,6 +18,7 @@ const (
 // Task 表示一次诊断任务
 type Task struct {
 	ID          string    `json:"id"`
+	TenantID    string    `json:"tenant_id"`    // 所属租户 ID
 	Input       string    `json:"input"`        // 用户输入或告警内容
 	Source      string    `json:"source"`        // 来源: cli / web / webhook
 	Status      Status    `json:"status"`
@@ -31,11 +32,14 @@ type Task struct {
 
 // Step 是 Agent ReAct 循环中的一步
 type Step struct {
-	Index    int       `json:"index"`
-	Think    string    `json:"think"`
-	Action   *Action   `json:"action,omitempty"`
-	Observe  string    `json:"observe,omitempty"`
-	Timestamp time.Time `json:"timestamp"`
+	Index      int            `json:"index"`
+	Think      string         `json:"think"`
+	Action     *Action        `json:"action,omitempty"`
+	Observe    string         `json:"observe,omitempty"`
+	IsKeyStep  bool           `json:"is_key_step"`             // 标识是否为关键步骤（tool_call）
+	ToolName   string         `json:"tool_name,omitempty"`     // 冗余字段，方便前端直接使用
+	ToolParams map[string]any `json:"tool_params,omitempty"`   // 冗余字段，方便前端直接使用
+	Timestamp  time.Time      `json:"timestamp"`
 }
 
 // Action 是工具调用
@@ -81,7 +85,8 @@ const (
 
 // TaskEvent 是 SSE 推送的事件，用于实时展示 Agent 思考过程
 type TaskEvent struct {
-	TaskID string `json:"task_id"`
-	Type   string `json:"type"`   // step / diagnosis / recovery / status
-	Data   any    `json:"data"`
+	TaskID   string `json:"task_id"`
+	TenantID string `json:"tenant_id,omitempty"` // 所属租户 ID
+	Type     string `json:"type"`                // step / diagnosis / recovery / status
+	Data     any    `json:"data"`
 }

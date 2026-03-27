@@ -6,43 +6,48 @@ import (
 	"net/http"
 
 	"github.com/Tsukikage7/argus/internal/application/command"
+	"github.com/Tsukikage7/argus/internal/domain/task"
+	httputil "github.com/Tsukikage7/argus/internal/interfaces/http"
 )
 
 // DiagnoseHandler 处理诊断 API 请求
 type DiagnoseHandler struct {
 	diagnoseCmd *command.DiagnoseHandler
+	tokenStore  *StreamTokenStore
 }
 
 // NewDiagnoseHandler 创建诊断 HTTP 处理器
-func NewDiagnoseHandler(cmd *command.DiagnoseHandler) *DiagnoseHandler {
-	return &DiagnoseHandler{diagnoseCmd: cmd}
+func NewDiagnoseHandler(cmd *command.DiagnoseHandler, tokenStore *StreamTokenStore) *DiagnoseHandler {
+	return &DiagnoseHandler{diagnoseCmd: cmd, tokenStore: tokenStore}
 }
 
 type diagnoseRequest struct {
-	Input  string `json:"input"`
-	Source string `json:"source"`
+	Input   string                  `json:"input"`
+	Source  string                  `json:"source"`
+	Context *command.DiagnoseContext `json:"context,omitempty"`
 }
 
 type diagnoseResponse struct {
-	TaskID string `json:"task_id"`
-	Status string `json:"status"`
+	TaskID      string `json:"task_id"`
+	Status      string `json:"status"`
+	StreamToken string `json:"stream_token,omitempty"` // SSE 流令牌（单次使用，TTL=5min）
 }
 
 // ServeHTTP POST /api/v1/diagnose
 func (h *DiagnoseHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+		httputil.WriteError(w, http.StatusMethodNotAllowed, httputil.CodeValidation, "method not allowed")
 		return
 	}
 
 	var req diagnoseRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
+		httputil.WriteError(w, http.StatusBadRequest, httputil.CodeValidation, "invalid request body")
 		return
 	}
 
 	if req.Input == "" {
-		http.Error(w, `{"error":"input is required"}`, http.StatusBadRequest)
+		httputil.WriteError(w, http.StatusBadRequest, httputil.CodeValidation, "input is required")
 		return
 	}
 
@@ -50,19 +55,24 @@ func (h *DiagnoseHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		req.Source = "web"
 	}
 
-	task, err := h.diagnoseCmd.Handle(r.Context(), command.DiagnoseCommand{
-		Input:  req.Input,
-		Source: req.Source,
+	p := task.PrincipalFrom(r.Context())
+	t, err := h.diagnoseCmd.Handle(r.Context(), command.DiagnoseCommand{
+		TenantID: p.TenantID,
+		Input:    req.Input,
+		Source:   req.Source,
+		Context:  req.Context,
 	})
 	if err != nil {
-		http.Error(w, `{"error":"`+err.Error()+`"}`, http.StatusInternalServerError)
+		httputil.WriteError(w, http.StatusInternalServerError, httputil.CodeInternal, err.Error())
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusAccepted)
-	json.NewEncoder(w).Encode(diagnoseResponse{
-		TaskID: task.ID,
-		Status: string(task.Status),
+	// 生成 SSE 流令牌
+	streamToken := h.tokenStore.Issue(p.TenantID, t.ID)
+
+	httputil.WriteJSON(w, http.StatusAccepted, diagnoseResponse{
+		TaskID:      t.ID,
+		Status:      string(t.Status),
+		StreamToken: streamToken,
 	})
 }

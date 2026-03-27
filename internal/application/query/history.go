@@ -9,7 +9,8 @@ import (
 
 // HistoryQuery 诊断历史查询
 type HistoryQuery struct {
-	Limit int
+	TenantID string
+	Limit    int
 }
 
 // HistoryHandler 处理历史查询
@@ -24,5 +25,5 @@ func NewHistoryHandler(history command.HistoryRepository) *HistoryHandler {
 
 // Handle 查询诊断历史
 func (h *HistoryHandler) Handle(ctx context.Context, q HistoryQuery) ([]*task.Task, error) {
-	return h.history.ListRecent(ctx, q.Limit)
+	return h.history.ListRecent(ctx, q.TenantID, q.Limit)
 }
