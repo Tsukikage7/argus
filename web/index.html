@@ -178,6 +178,11 @@
         </div>
       </div>
       <div class="flex items-center gap-2.5">
+        <!-- 演示模式 Toggle -->
+        <div class="flex items-center gap-1.5">
+          <span class="text-[10px] font-medium" style="color:var(--text-3)">演示</span>
+          <div id="demo-toggle" class="toggle-switch" onclick="toggleDemoMode()"><div class="toggle-knob"></div></div>
+        </div>
         <span id="task-timer" class="text-xs" style="color:var(--text-4);display:none"></span>
         <span id="task-badge" class="badge-status pending" style="display:none"><span class="dot"></span><span id="task-badge-text"></span></span>
         <button class="theme-btn" onclick="toggleTheme()" title="切换主题">
@@ -196,19 +201,20 @@
       <div class="flex gap-2 mb-3">
         <button class="mode-tab active" id="mode-diagnose-tab" onclick="switchMode('diagnose')">诊断模式</button>
         <button class="mode-tab" id="mode-replay-tab" onclick="switchMode('replay')">回放模式</button>
+        <button class="mode-tab" id="mode-monitor-tab" onclick="switchMode('monitor')">监控模式</button>
       </div>
 
       <!-- 诊断模式输入 -->
       <div id="diagnose-input-panel">
         <div class="flex gap-3">
-          <input id="diag-input" type="text" placeholder="输入告警描述，如：order-service 大量 504 超时" class="input-diag flex-1 rounded-lg px-4 py-2 text-sm" />
+          <input id="diag-input" type="text" placeholder="输入告警描述、request_uuid 或错误关键词，如：prj-ubill 连接池耗尽" class="input-diag flex-1 rounded-lg px-4 py-2 text-sm" />
           <button id="diag-btn" onclick="startDiagnose()" class="shrink-0 px-5 py-2 rounded-lg text-white text-sm font-semibold transition-all hover:brightness-110 active:scale-[.97] disabled:opacity-40 disabled:pointer-events-none" style="background:linear-gradient(135deg,var(--brand),#818cf8)">开始诊断</button>
         </div>
         <div class="flex flex-wrap gap-1.5 mt-2.5">
-          <span class="chip" onclick="quickFill(this)">order-service 大量 504 超时</span>
-          <span class="chip" onclick="quickFill(this)">payment-service 连接池耗尽</span>
-          <span class="chip" onclick="quickFill(this)">inventory-service OOM</span>
-          <span class="chip" onclick="quickFill(this)">gateway 间歇性 502</span>
+          <span class="chip" onclick="quickFill(this)">prj-ubill 连接池耗尽</span>
+          <span class="chip" onclick="quickFill(this)">prj-uresource 大量 504 超时</span>
+          <span class="chip" onclick="quickFill(this)">prj-apigateway 间歇性 502</span>
+          <span class="chip" onclick="quickFill(this)">prj-uresource OOM</span>
         </div>
       </div>
 
@@ -272,7 +278,7 @@
     </div>
 
     <!-- 三栏 -->
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+    <div id="main-grid" class="grid grid-cols-1 lg:grid-cols-12 gap-5">
 
       <!-- 左栏：推理过程（5/12） -->
       <div class="lg:col-span-5 card-panel flex flex-col" style="min-height:400px;max-height:75vh">
@@ -316,7 +322,6 @@
             <div class="text-center text-sm py-8" style="color:var(--text-4)">等待诊断完成</div>
           </div>
         </div>
-      </div>
 
         <!-- 影响面报告 -->
         <div id="impact-report-panel" class="card-panel" style="display:none">
@@ -356,6 +361,50 @@
         </div>
       </div>
     </div>
+    <!-- 监控模式面板 -->
+    <div id="monitor-panel" style="display:none">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+        <div class="lg:col-span-2 card-panel">
+          <div class="card-header">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+            监控状态
+          </div>
+          <div class="p-4">
+            <div id="monitor-status" class="text-sm" style="color:var(--text-2)">
+              <div class="flex items-center gap-2 mb-2">
+                <span class="dot" style="width:8px;height:8px;border-radius:50%;background:#10b981"></span>
+                <span>日志监控服务运行中</span>
+              </div>
+              <div class="text-xs" style="color:var(--text-3)">每 30 秒扫描一次 ES，检测 ERROR 日志异常</div>
+            </div>
+          </div>
+        </div>
+        <div class="card-panel">
+          <div class="card-header">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+            Live 生成器
+          </div>
+          <div class="p-4 flex flex-col gap-2">
+            <div id="live-status" class="text-xs" style="color:var(--text-3)">状态: 已停止</div>
+            <button id="live-toggle-btn" onclick="toggleLiveGen()" class="px-3 py-1.5 rounded-md text-xs font-semibold text-white transition-all hover:brightness-110" style="background:var(--brand)">启动 Live</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 底部日志终端面板 -->
+    <div id="live-log-panel" class="card-panel mt-4" style="display:none">
+      <div class="card-header justify-between">
+        <div class="flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+          实时日志流
+          <span id="log-count" class="text-[10px] px-1.5 py-0.5 rounded" style="background:var(--bg-input);color:var(--text-4)">0</span>
+        </div>
+        <button onclick="clearLogPanel()" class="text-[10px] px-2 py-0.5 rounded" style="border:1px solid var(--border);color:var(--text-3)">清空</button>
+      </div>
+      <div id="log-terminal" class="scroller" style="height:12rem;overflow-y:auto;background:rgba(0,0,0,0.8);padding:.5rem .75rem;font-family:ui-monospace,SFMono-Regular,monospace;font-size:11px;line-height:1.6">
+      </div>
+    </div>
   </main>
 
   <script>
@@ -373,19 +422,21 @@
     let currentDiagnosis=null, traceData=[], timelineEvents=[];
     const diagHistory=[];
 
-    /* 服务拓扑定义 */
+    /* 服务拓扑定义（UCloud namespace 格式） */
     const TOPOLOGY = {
-      services: ['gateway','user-service','order-service','payment-service','inventory-service','notification-service'],
+      services: ['prj-apigateway','prj-ubill','prj-uresource','prj-uhost','prj-unet','prj-udb'],
       edges: [
-        ['gateway','user-service'],['gateway','order-service'],['gateway','inventory-service'],
-        ['order-service','payment-service'],['order-service','inventory-service'],
+        ['prj-apigateway','prj-ubill'],['prj-apigateway','prj-uresource'],['prj-apigateway','prj-uhost'],
+        ['prj-ubill','prj-uresource'],['prj-uresource','prj-unet'],
       ],
       /* 用于展示主要诊断链路的路径 */
       chains: {
-        'payment-service':  ['gateway','order-service','payment-service'],
-        'inventory-service':['gateway','order-service','inventory-service'],
-        'order-service':    ['gateway','order-service'],
-        'gateway':          ['gateway'],
+        'prj-ubill':      ['prj-apigateway','prj-ubill'],
+        'prj-uresource':  ['prj-apigateway','prj-uresource'],
+        'prj-uhost':      ['prj-apigateway','prj-uhost'],
+        'prj-unet':       ['prj-apigateway','prj-uresource','prj-unet'],
+        'prj-udb':        ['prj-apigateway','prj-ubill','prj-udb'],
+        'prj-apigateway': ['prj-apigateway'],
       }
     };
 
@@ -513,18 +564,44 @@
     function extractTraceInfo(step){
       if(!step.action) return;
       const p=step.action.params||{};
-      if(step.action.tool==='trace_analyze' && p.trace_id){
-        addTimeline('info','追踪链路 '+p.trace_id.substring(0,12)+'…');
+      if(step.action.tool==='trace_analyze'){
+        /* 新格式：request_uuid；兼容旧格式：trace_id */
+        const id=p.request_uuid||p.trace_id;
+        if(id) addTimeline('info','追踪链路 '+id.substring(0,12)+'…');
+      }
+      if(step.action.tool==='es_query_logs'){
+        if(p.namespace) addTimeline('info','查询 namespace: '+p.namespace);
+        if(p.request_uuid) addTimeline('info','追踪 request_uuid: '+p.request_uuid.substring(0,12)+'…');
       }
     }
 
     function extractObserveEvents(obs){
-      if(obs.includes('pool exhausted')) addTimeline('error','检测到连接池耗尽');
-      if(obs.includes('OOM') || obs.includes('out of memory')) addTimeline('error','检测到 OOM');
-      if(obs.includes('no space left')) addTimeline('error','检测到磁盘空间不足');
-      if(obs.includes('timeout') || obs.includes('TIMEOUT')) addTimeline('warn','检测到超时');
-      if(obs.includes('connection refused')) addTimeline('warn','检测到连接拒绝');
-      if(obs.includes('slow query')) addTimeline('warn','检测到慢查询');
+      /* per-step 去重：同一 observe 内相同事件只添加一次 */
+      const seen = new Set();
+      function addOnce(type, msg){
+        const key = type + '|' + msg;
+        if(seen.has(key)) return;
+        seen.add(key);
+        addTimeline(type, msg);
+      }
+      /* 连接与资源类 */
+      if(obs.includes('pool exhausted')) addOnce('error','检测到连接池耗尽');
+      if(obs.includes('OOM') || obs.includes('out of memory')) addOnce('error','检测到 OOM');
+      if(obs.includes('no space left') || obs.includes('disk')) addOnce('error','检测到磁盘空间不足');
+      if(obs.includes('timeout') || obs.includes('TIMEOUT')) addOnce('warn','检测到超时');
+      if(obs.includes('connection refused')) addOnce('warn','检测到连接拒绝');
+      if(obs.includes('slow query')) addOnce('warn','检测到慢查询');
+      /* UCloud 链路追踪类 */
+      if(obs.includes('request_uuid')) addOnce('info','检测到 request_uuid 追踪标识');
+      if(obs.includes('trace-line') || obs.includes('Trace Line')) addOnce('info','检测到网关链路 trace-line');
+      if(obs.includes('trace_analyze')) addOnce('info','执行链路分析');
+      /* Namespace / K8s 类 */
+      if(obs.includes('namespace') || obs.includes('kubernetes_namespace')) addOnce('info','检测到 namespace 信息');
+      if(obs.includes('prj-apigateway')) addOnce('warn','网关 prj-apigateway 异常');
+      if(obs.includes('prj-ubill')) addOnce('warn','计费服务 prj-ubill 异常');
+      if(obs.includes('prj-uresource')) addOnce('warn','资源服务 prj-uresource 异常');
+      /* 错误级别 */
+      if(obs.includes('ERROR')) addOnce('error','检测到 ERROR 级别日志');
     }
 
     /* ── 处理诊断结果 ── */
@@ -709,10 +786,23 @@
 
     function switchMode(mode){
       currentMode=mode;
-      document.getElementById('mode-diagnose-tab').classList.toggle('active',mode==='diagnose');
-      document.getElementById('mode-replay-tab').classList.toggle('active',mode==='replay');
-      document.getElementById('diagnose-input-panel').style.display=mode==='diagnose'?'block':'none';
-      document.getElementById('replay-input-panel').style.display=mode==='replay'?'block':'none';
+      // 切换 tab 按钮高亮
+      document.querySelectorAll('.mode-tab').forEach(b=>b.classList.remove('active'));
+      const tabBtn = document.getElementById('mode-'+mode+'-tab');
+      if(tabBtn) tabBtn.classList.add('active');
+
+      // 切换面板显示
+      document.getElementById('diagnose-input-panel').style.display = mode==='diagnose'?'':'none';
+      document.getElementById('replay-input-panel').style.display = mode==='replay'?'':'none';
+      const monitorPanel = document.getElementById('monitor-panel');
+      if(monitorPanel) monitorPanel.style.display = mode==='monitor'?'':'none';
+
+      // 三栏区域和统计栏仅在诊断和回放模式显示
+      const mainGrid = document.getElementById('main-grid');
+      if(mainGrid) mainGrid.style.display = mode==='monitor'?'none':'';
+      const statsBar = document.getElementById('stats-bar');
+      if(statsBar && mode==='monitor') statsBar.style.display = 'none';
+
       if(mode==='replay') fetchScenarios();
     }
 
@@ -821,6 +911,24 @@
           const d=JSON.parse(e.data);
           addTimeline('error','回放错误: '+String(d.data));
         }catch{}
+      });
+      // 诊断任务关联事件（由后端 forwardDiagnosisEvents 转发）
+      replayEventSource.addEventListener('diagnosis_task',e=>{
+        const d=JSON.parse(e.data);
+        addTimeline('info','诊断任务已创建: '+String(d.data).substring(0,8)+'…');
+      });
+      replayEventSource.addEventListener('step',e=>{
+        const d=JSON.parse(e.data);
+        if(d.data) renderStep(d.data);
+      });
+      replayEventSource.addEventListener('diagnosis',e=>{
+        const d=JSON.parse(e.data);
+        if(d.data) handleDiagnosis(d.data);
+      });
+      replayEventSource.addEventListener('diagnosis_status',e=>{
+        const d=JSON.parse(e.data);
+        const st=typeof d.data==='string'?d.data:String(d.data);
+        addTimeline('info','诊断状态: '+st);
       });
       replayEventSource.onerror=()=>{};
     }
@@ -962,6 +1070,168 @@
 
     // 页面加载时预获取场景列表
     fetchScenarios();
+    /* ═══════════ 演示模式 ═══════════ */
+    let demoMode = false;
+    let logSSE = null;
+    let logCount = 0;
+    const MAX_LOG_LINES = 200;
+
+    // namespace 颜色映射
+    const NS_COLORS = {
+      'prj-apigateway': '#60a5fa',
+      'prj-ubill': '#a78bfa',
+      'prj-uhost': '#34d399',
+      'prj-uresource': '#fbbf24',
+      'prj-unet': '#f472b6',
+      'prj-udb': '#fb923c',
+    };
+
+    function toggleDemoMode(){
+      demoMode = !demoMode;
+      const toggle = document.getElementById('demo-toggle');
+      toggle.classList.toggle('on', demoMode);
+
+      if(demoMode){
+        startLiveAndLog();
+      } else {
+        stopLiveAndLog();
+      }
+    }
+
+    async function startLiveAndLog(){
+      // 启动 Live Generator
+      try {
+        await fetch('/api/v1/mock/live/start', {
+          method:'POST',
+          headers:{'Authorization':'Bearer '+API_KEY}
+        });
+      } catch(e) {
+        console.error('start live failed:', e);
+      }
+
+      // 显示日志面板
+      document.getElementById('live-log-panel').style.display = '';
+
+      // 连接日志 SSE
+      connectLogSSE();
+    }
+
+    async function stopLiveAndLog(){
+      // 停止 Live Generator
+      try {
+        await fetch('/api/v1/mock/live/stop', {
+          method:'POST',
+          headers:{'Authorization':'Bearer '+API_KEY}
+        });
+      } catch(e) {
+        console.error('stop live failed:', e);
+      }
+
+      // 断开 SSE
+      if(logSSE) { logSSE.close(); logSSE = null; }
+
+      // 隐藏日志面板
+      document.getElementById('live-log-panel').style.display = 'none';
+    }
+
+    function connectLogSSE(){
+      if(logSSE) logSSE.close();
+      logSSE = new EventSource('/api/v1/logs/stream');
+      logSSE.addEventListener('log', e => {
+        const evt = JSON.parse(e.data);
+        appendLogLine(evt);
+      });
+      logSSE.onerror = () => {};
+    }
+
+    function appendLogLine(evt){
+      const terminal = document.getElementById('log-terminal');
+      const line = document.createElement('div');
+
+      const nsColor = NS_COLORS[evt.namespace] || '#94a3b8';
+      const levelColor = evt.level === 'ERROR' ? '#ef4444' : evt.level === 'WARN' ? '#fbbf24' : '#94a3b8';
+      const bgFlash = evt.level === 'ERROR' ? 'background:rgba(239,68,68,0.1);' : '';
+
+      const ts = evt.timestamp ? evt.timestamp.substring(11, 23) : '';
+      const ns = (evt.namespace || '').replace('prj-', '');
+      const msg = truncateMsg(evt.message || '', 120);
+
+      line.style.cssText = bgFlash + 'white-space:nowrap;';
+      line.innerHTML = `<span style="color:#475569">${escHtml(ts)}</span> <span style="color:${nsColor};font-weight:600">[${escHtml(ns)}]</span> <span style="color:${levelColor};font-weight:bold">${evt.level||'INFO'}</span> <span style="color:#cbd5e1">${escHtml(msg)}</span>`;
+
+      terminal.appendChild(line);
+      logCount++;
+      document.getElementById('log-count').textContent = logCount;
+
+      // 限制行数
+      while(terminal.children.length > MAX_LOG_LINES){
+        terminal.removeChild(terminal.firstChild);
+      }
+
+      // 自动滚动
+      terminal.scrollTop = terminal.scrollHeight;
+
+      // ERROR 行闪烁
+      if(evt.level === 'ERROR'){
+        line.style.animation = 'fadeSlide .3s ease both';
+      }
+    }
+
+    function truncateMsg(s, n){
+      // 对于 JSON message 只取前 n 字符
+      if(s.length <= n) return s;
+      return s.substring(0, n) + '…';
+    }
+
+    function clearLogPanel(){
+      document.getElementById('log-terminal').innerHTML = '';
+      logCount = 0;
+      document.getElementById('log-count').textContent = '0';
+    }
+
+    /* ═══════════ Live 生成器控制（监控面板用） ═══════════ */
+    async function toggleLiveGen(){
+      const btn = document.getElementById('live-toggle-btn');
+      try {
+        const statusRes = await fetch('/api/v1/mock/live/status', {headers:{'Authorization':'Bearer '+API_KEY}});
+        const status = await statusRes.json();
+
+        if(status.running){
+          await fetch('/api/v1/mock/live/stop', {method:'POST', headers:{'Authorization':'Bearer '+API_KEY}});
+          btn.textContent = '启动 Live';
+          document.getElementById('live-status').textContent = '状态: 已停止';
+          document.getElementById('live-log-panel').style.display = 'none';
+          if(logSSE) { logSSE.close(); logSSE = null; }
+        } else {
+          await fetch('/api/v1/mock/live/start', {method:'POST', headers:{'Authorization':'Bearer '+API_KEY}});
+          btn.textContent = '停止 Live';
+          document.getElementById('live-status').textContent = '状态: 运行中';
+          document.getElementById('live-log-panel').style.display = '';
+          connectLogSSE();
+        }
+      } catch(e) {
+        console.error('toggleLiveGen failed:', e);
+      }
+    }
+
+    /* ═══════════ 置信度动画 ═══════════ */
+    const _origHandleDiagnosis = handleDiagnosis;
+    handleDiagnosis = function(d) {
+      _origHandleDiagnosis(d);
+      // 置信度数字跳动动画
+      if(d && d.confidence) {
+        const target = Math.round(d.confidence * 100);
+        const el = document.getElementById('stat-conf');
+        let current = 0;
+        const step = Math.max(1, Math.floor(target / 30));
+        const timer = setInterval(() => {
+          current += step;
+          if(current >= target) { current = target; clearInterval(timer); }
+          el.textContent = current + '%';
+        }, 30);
+      }
+    };
+
   </script>
 </body>
 </html>

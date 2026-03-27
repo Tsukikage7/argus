@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/signal"
 	"time"
 
 	"github.com/Tsukikage7/argus/internal/application/command"
@@ -109,8 +110,8 @@ func diagnoseCmd() *cobra.Command {
 			}
 			diagAgent := agent.New(llmClient, toolRegistry, agentCfg)
 
-			// 设置实时输出
-			diagAgent.OnEvent(func(event task.TaskEvent) {
+			// 设置实时输出（per-task handler 直接传给 Run）
+			cliHandler := func(event task.TaskEvent) {
 				switch event.Type {
 				case "step":
 					if step, ok := event.Data.(task.Step); ok {
@@ -129,7 +130,7 @@ func diagnoseCmd() *cobra.Command {
 				case "status":
 					fmt.Printf("📋 Status: %v\n", event.Data)
 				}
-			})
+			}
 
 			// 创建任务
 			t := &task.Task{
@@ -146,7 +147,7 @@ func diagnoseCmd() *cobra.Command {
 			fmt.Printf("📝 Task ID: %s\n", t.ID)
 
 			ctx := context.Background()
-			if err := diagAgent.Run(ctx, t); err != nil {
+			if err := diagAgent.Run(ctx, t, cliHandler); err != nil {
 				return fmt.Errorf("diagnosis failed: %w", err)
 			}
 
@@ -191,6 +192,60 @@ func mockCmd() *cobra.Command {
 	}
 
 	cmd.AddCommand(generateCmd)
+
+	// live 子命令
+	var liveRPS int
+	var liveFaultRate float64
+	var liveDuration string
+
+	liveCmd := &cobra.Command{
+		Use:   "live",
+		Short: "持续生成实时日志数据到 ES",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := loadConfig()
+			if err != nil {
+				return fmt.Errorf("config: %w", err)
+			}
+			esClient, err := es.New(&cfg.Elasticsearch)
+			if err != nil {
+				return fmt.Errorf("elasticsearch: %w", err)
+			}
+
+			liveCfg := mock.LiveConfig{
+				RPS:       liveRPS,
+				FaultRate: liveFaultRate,
+				Scenarios: mock.AllScenarios(),
+			}
+			if liveDuration != "" {
+				if d, err := time.ParseDuration(liveDuration); err == nil {
+					liveCfg.Duration = d
+				}
+			}
+
+			gen := mock.NewLiveGenerator(esClient, mock.AllScenarios())
+			fmt.Printf("🔴 Live generating: RPS=%d, FaultRate=%.1f%%\n", liveRPS, liveFaultRate*100)
+			fmt.Println("Press Ctrl+C to stop...")
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			// 捕获中断信号
+			go func() {
+				sigCh := make(chan os.Signal, 1)
+				signal.Notify(sigCh, os.Interrupt)
+				<-sigCh
+				fmt.Println("\n⏹ Stopping...")
+				cancel()
+			}()
+
+			return gen.Run(ctx, liveCfg)
+		},
+	}
+	liveCmd.Flags().IntVar(&liveRPS, "rps", 5, "每秒请求数")
+	liveCmd.Flags().Float64Var(&liveFaultRate, "fault-rate", 0.1, "故障概率 (0.0-1.0)")
+	liveCmd.Flags().StringVar(&liveDuration, "duration", "", "持续时间（如 30m, 1h），空表示无限")
+
+	cmd.AddCommand(liveCmd)
 	return cmd
 }
 
@@ -308,25 +363,8 @@ func runReplay(replayType task.ReplayType, scenario string, intensity, rate floa
 		}
 		diagAgent := agent.New(llmClient, toolRegistry, agentCfg)
 
-		// CLI 实时输出
-		diagAgent.OnEvent(func(event task.TaskEvent) {
-			switch event.Type {
-			case "step":
-				if step, ok := event.Data.(task.Step); ok {
-					fmt.Printf("  💭 Step %d - Think: %s\n", step.Index, truncate(step.Think, 200))
-					if step.Action != nil {
-						fmt.Printf("  🔧 Action: %s(%v)\n", step.Action.Tool, step.Action.Params)
-					}
-					if step.Observe != "" {
-						fmt.Printf("  👁 Observe: %s\n", truncate(step.Observe, 300))
-					}
-				}
-			case "diagnosis":
-				if d, ok := event.Data.(*task.Diagnosis); ok {
-					fmt.Println("\n" + formatDiagnosis(d))
-				}
-			}
-		})
+		// CLI 回放场景下的实时输出 handler 由 DiagnoseHandler 内部注入，
+		// 此处无需再调用 OnEvent；若需 CLI 输出可在 DiagnoseHandler.events 侧处理
 
 		sseHub := httphandler.NewSSEHub()
 		taskRepo := persistence.NewTaskRedisRepository(redisCache)

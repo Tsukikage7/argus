@@ -10,7 +10,8 @@ import (
 
 // TaskStatusQuery 任务状态查询
 type TaskStatusQuery struct {
-	TaskID string
+	TenantID string
+	TaskID   string
 }
 
 // TaskStatusHandler 处理任务状态查询
@@ -25,5 +26,5 @@ func NewTaskStatusHandler(taskRepo command.TaskRepository) *TaskStatusHandler {
 
 // Handle 查询任务状态
 func (h *TaskStatusHandler) Handle(ctx context.Context, q TaskStatusQuery) (*task.Task, error) {
-	return h.taskRepo.Get(ctx, q.TaskID)
+	return h.taskRepo.Get(ctx, q.TenantID, q.TaskID)
 }

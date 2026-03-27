@@ -1,8 +1,11 @@
 package mock
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"math/rand"
 	"time"
 
@@ -41,8 +44,7 @@ func (e *ReplayEngine) ListScenarios() []Scenario {
 
 // ReplayResult 数据注入结果
 type ReplayResult struct {
-	LogsWritten   int
-	TracesWritten int
+	LogsWritten int
 }
 
 // RunFaultReplay 执行故障回放：生成故障数据并注入 ES
@@ -53,7 +55,7 @@ func (e *ReplayEngine) RunFaultReplay(ctx context.Context, session *task.ReplayS
 	}
 
 	baseTime := time.Now()
-	logs, traces := scenario.GenerateLogs(baseTime)
+	logs := scenario.GenerateLogs(baseTime)
 
 	// 按 FaultIntensity 缩放错误日志数量
 	intensity := session.Config.FaultIntensity
@@ -64,10 +66,9 @@ func (e *ReplayEngine) RunFaultReplay(ctx context.Context, session *task.ReplayS
 
 	// 给每条 doc 注入 replay_session_id
 	tagDocs(logs, session.ID)
-	tagTraceDocs(traces, session.ID)
 
 	// 写入 ES
-	result, err := e.writeDocs(ctx, logs, traces, baseTime)
+	result, err := e.writeDocs(ctx, logs, baseTime)
 	if err != nil {
 		return nil, fmt.Errorf("write replay data: %w", err)
 	}
@@ -82,7 +83,7 @@ func (e *ReplayEngine) RunTrafficReplay(ctx context.Context, session *task.Repla
 	}
 
 	baseTime := time.Now()
-	logs, traces := scenario.GenerateLogs(baseTime)
+	logs := scenario.GenerateLogs(baseTime)
 
 	// 按 TrafficRateMultiplier 缩放正常日志数量
 	rate := session.Config.TrafficRateMultiplier
@@ -100,20 +101,36 @@ func (e *ReplayEngine) RunTrafficReplay(ctx context.Context, session *task.Repla
 
 	// 打 replay tag
 	tagDocs(logs, session.ID)
-	tagTraceDocs(traces, session.ID)
 
-	result, err := e.writeDocs(ctx, logs, traces, baseTime)
+	result, err := e.writeDocs(ctx, logs, baseTime)
 	if err != nil {
 		return nil, fmt.Errorf("write replay data: %w", err)
 	}
 	return result, nil
 }
 
-// ComputeImpact 基于 ES 聚合计算影响面
-func (e *ReplayEngine) ComputeImpact(ctx context.Context, sessionID string) (*task.ImpactReport, error) {
-	stats, err := e.es.QueryReplayStats(ctx, sessionID)
+// ComputeImpact 基于 ES 查询计算影响面
+// 先用聚合取各 namespace 总文档数，再抽样原始文档统计真实错误率
+func (e *ReplayEngine) ComputeImpact(ctx context.Context, tenantID, sessionID string) (*task.ImpactReport, error) {
+	stats, err := e.es.QueryReplayStats(ctx, tenantID, sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("query replay stats: %w", err)
+	}
+
+	// 获取原始文档用于真实错误统计
+	docs, err := e.queryReplayDocs(ctx, tenantID, sessionID)
+	if err != nil {
+		// 查询失败不阻断，降级为仅使用聚合数据
+		docs = nil
+	}
+
+	// 按 namespace 建立错误文档计数表
+	errCountByNS := make(map[string]int)
+	for _, doc := range docs {
+		if isErrorOrWarn(doc) {
+			ns, _ := doc["kubernetes_namespace"].(string)
+			errCountByNS[ns]++
+		}
 	}
 
 	report := &task.ImpactReport{
@@ -124,54 +141,97 @@ func (e *ReplayEngine) ComputeImpact(ctx context.Context, sessionID string) (*ta
 	}
 
 	totalRequests := 0
-	failedRequests := 0
+	totalFailed := 0
 	affectedCount := 0
 
 	for _, svc := range stats.Services {
-		total := svc.InfoCount + svc.WarnCount + svc.ErrorCount
-		totalRequests += total
-		failedRequests += svc.ErrorCount
+		totalRequests += svc.DocCount
 
-		errRate := 0.0
-		if total > 0 {
-			errRate = float64(svc.ErrorCount) / float64(total)
-		}
+		// 使用真实错误计数；若无原始文档数据则退化为 0
+		errCount := errCountByNS[svc.Namespace]
+		totalFailed += errCount
 
 		status := "healthy"
-		isDirect := false
-		if errRate >= 0.8 {
-			status = "down"
-			isDirect = true
-			affectedCount++
-		} else if errRate >= 0.3 {
+		if errCount > 0 {
 			status = "degraded"
 			affectedCount++
 		}
 
+		var errRate float64
+		if svc.DocCount > 0 {
+			errRate = float64(errCount) / float64(svc.DocCount)
+		}
+
 		impact := task.ServiceImpact{
-			Name:         svc.ServiceName,
-			Status:       status,
-			ErrorCount:   svc.ErrorCount,
-			ErrorRate:    errRate,
-			AvgLatencyMs: svc.AvgLatencyMs,
-			P99LatencyMs: svc.P99LatencyMs,
-			IsDirect:     isDirect,
+			Name:       svc.Namespace,
+			Status:     status,
+			ErrorCount: errCount,
+			ErrorRate:  errRate,
+			IsDirect:   errCount > 10,
 		}
 		report.AffectedServices = append(report.AffectedServices, impact)
-		report.ErrorRate[svc.ServiceName] = errRate
-		if svc.P99LatencyMs > 0 {
-			report.LatencyImpact[svc.ServiceName] = svc.P99LatencyMs
-		}
+		report.ErrorRate[svc.Namespace] = errRate
 	}
 
 	report.TotalRequests = totalRequests
-	report.FailedRequests = failedRequests
+	report.FailedRequests = totalFailed
 
-	// 确定 blast radius
+	// 计算 blast radius
 	totalServices := len(Topology())
-	report.BlastRadius = computeBlastRadius(affectedCount, totalServices, failedRequests, totalRequests)
+	report.BlastRadius = computeBlastRadius(affectedCount, totalServices, totalFailed, totalRequests)
 
 	return report, nil
+}
+
+// queryReplayDocs 通过 replay_session_id 查询原始文档（最多 1000 条）
+// 用于 ComputeImpact 中统计真实 error/warn 数量
+func (e *ReplayEngine) queryReplayDocs(ctx context.Context, tenantID, sessionID string) ([]map[string]any, error) {
+	query := map[string]any{
+		"query": map[string]any{
+			"term": map[string]any{
+				"replay_session_id.keyword": sessionID,
+			},
+		},
+		"size": 1000,
+		"_source": []string{"message", "kubernetes_namespace"},
+	}
+
+	body, err := json.Marshal(query)
+	if err != nil {
+		return nil, fmt.Errorf("marshal query: %w", err)
+	}
+
+	res, err := e.es.Raw().Search(
+		e.es.Raw().Search.WithContext(ctx),
+		e.es.Raw().Search.WithIndex(e.es.TenantIndex(tenantID)),
+		e.es.Raw().Search.WithBody(bytes.NewReader(body)),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("search replay docs: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.IsError() {
+		b, _ := io.ReadAll(res.Body)
+		return nil, fmt.Errorf("search error: %s", string(b))
+	}
+
+	var result struct {
+		Hits struct {
+			Hits []struct {
+				Source map[string]any `json:"_source"`
+			} `json:"hits"`
+		} `json:"hits"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("decode response: %w", err)
+	}
+
+	docs := make([]map[string]any, 0, len(result.Hits.Hits))
+	for _, h := range result.Hits.Hits {
+		docs = append(docs, h.Source)
+	}
+	return docs, nil
 }
 
 func computeBlastRadius(affected, total, failed, totalReq int) string {
@@ -196,7 +256,15 @@ func computeBlastRadius(affected, total, failed, totalReq int) string {
 	}
 }
 
-// scaleLogs 按故障强度缩放错误日志数量
+// isErrorOrWarn 判断日志是否为 ERROR 或 WARN 级别
+// 委托给 es.ExtractLogLevel 做统一的级别提取，保证与 ES 层逻辑一致
+func isErrorOrWarn(log map[string]any) bool {
+	message, _ := log["message"].(string)
+	level := es.ExtractLogLevel(&es.UCloudLog{Message: message})
+	return level == "ERROR" || level == "WARN"
+}
+
+// scaleLogs 按故障强度缩放错误/警告日志数量
 func scaleLogs(logs []map[string]any, intensity float64) []map[string]any {
 	if intensity == 1.0 {
 		return logs
@@ -204,8 +272,7 @@ func scaleLogs(logs []map[string]any, intensity float64) []map[string]any {
 
 	var result []map[string]any
 	for _, log := range logs {
-		severity, _ := log["severity"].(string)
-		if severity == "ERROR" || severity == "WARN" {
+		if isErrorOrWarn(log) {
 			if intensity > 1.0 {
 				// 复制更多错误日志
 				count := int(intensity)
@@ -226,12 +293,11 @@ func scaleLogs(logs []map[string]any, intensity float64) []map[string]any {
 	return result
 }
 
-// scaleTrafficLogs 按流量倍率缩放正常日志，按故障强度缩放错误日志
+// scaleTrafficLogs 按流量倍率缩放正常日志，按故障强度缩放错误/警告日志
 func scaleTrafficLogs(logs []map[string]any, rate, intensity float64) []map[string]any {
 	var result []map[string]any
 	for _, log := range logs {
-		severity, _ := log["severity"].(string)
-		if severity == "ERROR" || severity == "WARN" {
+		if isErrorOrWarn(log) {
 			if intensity > 1.0 {
 				count := int(intensity)
 				for j := 0; j < count; j++ {
@@ -255,18 +321,8 @@ func scaleTrafficLogs(logs []map[string]any, rate, intensity float64) []map[stri
 	return result
 }
 
+// tagDocs 在每条文档顶层注入 replay_session_id 字段
 func tagDocs(docs []map[string]any, sessionID string) {
-	for _, doc := range docs {
-		attrs, ok := doc["attributes"].(map[string]any)
-		if !ok {
-			attrs = make(map[string]any)
-			doc["attributes"] = attrs
-		}
-		attrs["replay_session_id"] = sessionID
-	}
-}
-
-func tagTraceDocs(docs []map[string]any, sessionID string) {
 	for _, doc := range docs {
 		doc["replay_session_id"] = sessionID
 	}
@@ -288,53 +344,34 @@ func copyDoc(doc map[string]any) map[string]any {
 	return copied
 }
 
-func (e *ReplayEngine) writeDocs(ctx context.Context, logs, traces []map[string]any, baseTime time.Time) (*ReplayResult, error) {
+// writeDocs 按 kubernetes_namespace 分组将日志批量写入 ES
+// 索引格式：{prefix}_{namespace}-{date}
+func (e *ReplayEngine) writeDocs(ctx context.Context, logs []map[string]any, baseTime time.Time) (*ReplayResult, error) {
 	prefix := e.es.Prefix()
 	date := baseTime.Format("2006.01.02")
 
-	// 按服务分组写入
-	logsByService := make(map[string][]map[string]any)
+	// 按 kubernetes_namespace 分组
+	logsByNamespace := make(map[string][]map[string]any)
 	for _, log := range logs {
-		svcInfo, ok := log["service"].(map[string]any)
-		if !ok {
-			continue
-		}
-		svcName, _ := svcInfo["name"].(string)
-		logsByService[svcName] = append(logsByService[svcName], log)
+		ns, _ := log["kubernetes_namespace"].(string)
+		logsByNamespace[ns] = append(logsByNamespace[ns], log)
 	}
 
 	totalLogs := 0
-	for svc, svcLogs := range logsByService {
-		index := fmt.Sprintf("%s-logs-%s-%s", prefix, svc, date)
-		for i := 0; i < len(svcLogs); i += 100 {
+	for ns, nsLogs := range logsByNamespace {
+		index := fmt.Sprintf("%s_%s-%s", prefix, ns, date)
+		for i := 0; i < len(nsLogs); i += 100 {
 			end := i + 100
-			if end > len(svcLogs) {
-				end = len(svcLogs)
+			if end > len(nsLogs) {
+				end = len(nsLogs)
 			}
-			if err := e.es.BulkIndex(ctx, index, svcLogs[i:end]); err != nil {
-				return nil, fmt.Errorf("bulk index logs for %s: %w", svc, err)
+			// 直接传 []map[string]any，BulkIndex 已升级为强类型签名
+			if err := e.es.BulkIndex(ctx, index, nsLogs[i:end]); err != nil {
+				return nil, fmt.Errorf("bulk index logs for %s: %w", ns, err)
 			}
 		}
-		totalLogs += len(svcLogs)
+		totalLogs += len(nsLogs)
 	}
 
-	totalTraces := 0
-	if len(traces) > 0 {
-		traceIndex := fmt.Sprintf("%s-traces-%s", prefix, date)
-		for i := 0; i < len(traces); i += 100 {
-			end := i + 100
-			if end > len(traces) {
-				end = len(traces)
-			}
-			if err := e.es.BulkIndex(ctx, traceIndex, traces[i:end]); err != nil {
-				return nil, fmt.Errorf("bulk index traces: %w", err)
-			}
-		}
-		totalTraces = len(traces)
-	}
-
-	return &ReplayResult{
-		LogsWritten:   totalLogs,
-		TracesWritten: totalTraces,
-	}, nil
+	return &ReplayResult{LogsWritten: totalLogs}, nil
 }

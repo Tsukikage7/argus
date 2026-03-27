@@ -25,6 +25,7 @@ const (
 // ReplaySession 表示一次回放会话
 type ReplaySession struct {
 	ID           string        `json:"id"`
+	TenantID     string        `json:"tenant_id"`   // 所属租户 ID
 	Type         ReplayType    `json:"type"`
 	ScenarioName string        `json:"scenario_name"`
 	Config       ReplayConfig  `json:"config"`

@@ -28,6 +28,17 @@ infra-clean:
 infra-status:
     docker compose ps
 
+# ─── 数据库迁移 ──────────────────────────────────────────
+
+# 执行 PG 迁移（按序号顺序执行 migrations/*.sql）
+migrate:
+    @echo "Running migrations..."
+    @for f in $(ls migrations/*_up_*.sql | sort); do \
+        echo "  → $f"; \
+        psql "postgres://argus:argus@localhost:5432/argus?sslmode=disable" -f "$f" 2>&1 || true; \
+    done
+    @echo "Migrations complete."
+
 # ─── 构建 ──────────────────────────────────────────────────
 
 # 构建 server

@@ -19,6 +19,16 @@ type Config struct {
 	Wechat        WechatConfig     `yaml:"wechat"`
 	Mock          MockConfig       `yaml:"mock"`
 	Replay        ReplayConfig     `yaml:"replay"`
+	Monitor       MonitorConfig    `yaml:"monitor"`
+	Live          LiveConfig       `yaml:"live"`
+	MultiTenant   MultiTenantConfig `yaml:"multi_tenant"`
+}
+
+// MultiTenantConfig 多租户配置
+type MultiTenantConfig struct {
+	Enabled            bool     `yaml:"enabled"`              // 是否启用多租户模式
+	BootstrapAdminKeys []string `yaml:"bootstrap_admin_keys"` // 引导 AdminKey 列表
+	AllowedOrigins     []string `yaml:"allowed_origins"`      // CORS 允许的来源列表
 }
 
 // AppConfig 基础服务配置
@@ -54,6 +64,7 @@ type ESConfig struct {
 	IndexPrefix string   `yaml:"index_prefix"`
 	Username    string   `yaml:"username"`
 	Password    string   `yaml:"password"`
+	Namespaces  []string `yaml:"namespaces"` // K8s namespace 列表，如 ["prj-apigateway", "prj-ubill"]
 }
 
 // RedisConfig Redis 连接配置
@@ -70,15 +81,18 @@ type PostgresConfig struct {
 
 // WechatConfig 企业微信配置
 type WechatConfig struct {
-	CorpID  string `yaml:"corp_id"`
-	AgentID int    `yaml:"agent_id"`
-	Secret  string `yaml:"secret"`
+	CorpID         string `yaml:"corp_id"`
+	AgentID        int    `yaml:"agent_id"`
+	Secret         string `yaml:"secret"`
+	WebhookURL     string `yaml:"webhook_url"`      // Bot Webhook 推送地址
+	Token          string `yaml:"token"`            // 应用回调 Token（URL 验证 + 消息签名）
+	EncodingAESKey string `yaml:"encoding_aes_key"` // 应用回调加解密密钥（43 字符 Base64）
 }
 
 // MockConfig Mock 数据生成配置
 type MockConfig struct {
-	Enabled  bool     `yaml:"enabled"`
-	Services []string `yaml:"services"`
+	Enabled    bool     `yaml:"enabled"`
+	Namespaces []string `yaml:"namespaces"` // 模拟的 K8s namespace 列表（原 services 改为 namespaces）
 }
 
 // ReplayConfig 回放功能配置
@@ -88,4 +102,18 @@ type ReplayConfig struct {
 	DefaultTrafficRate    float64       `yaml:"default_traffic_rate"`
 	MaxDuration           time.Duration `yaml:"max_duration"`
 	AutoDiagnose          bool          `yaml:"auto_diagnose"`
+}
+
+// MonitorConfig 日志监控配置
+type MonitorConfig struct {
+	Enabled   bool          `yaml:"enabled"`
+	Interval  time.Duration `yaml:"interval"`  // 扫描间隔，默认 30s
+	Cooldown  time.Duration `yaml:"cooldown"`  // 冷却时间，默认 5m
+	Threshold int           `yaml:"threshold"` // ERROR 触发阈值，默认 5
+}
+
+// LiveConfig 实时日志生成配置
+type LiveConfig struct {
+	RPS       int     `yaml:"rps"`        // 每秒请求数，默认 5
+	FaultRate float64 `yaml:"fault_rate"` // 故障概率，默认 0.1
 }
